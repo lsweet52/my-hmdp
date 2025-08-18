@@ -1,7 +1,5 @@
 package com.hmdp.controller;
 
-
-import cn.hutool.core.util.RandomUtil;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
@@ -54,7 +52,7 @@ public class UserController {
     @PostMapping("/logout")
     public Result logout(){
         //实现登出功能
-        return Result.fail("功能未完成");
+        return Result.ok();
     }
 
     @GetMapping("/me")

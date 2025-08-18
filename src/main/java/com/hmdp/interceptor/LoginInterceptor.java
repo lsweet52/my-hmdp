@@ -1,33 +1,31 @@
 package com.hmdp.interceptor;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.utils.UserHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class LoginInterceptor implements HandlerInterceptor {
 
+    private static final String LOGIN_TOKEN = "login:token:";
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        //获取session
-        HttpSession session = request.getSession();
-
-        //获取用户
-        UserDTO userDTO = (UserDTO)session.getAttribute("user");
-
-        //判断用户是否存在
-        if(userDTO == null){
-            //不存在，拦截，返回401
+        //判断有没有用户(ThreadLocal是否有用户)
+        if(UserHolder.getUser() == null){
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
         }
-
-        //存在，保存到ThreadLocal
-        UserHolder.saveUser(userDTO);
 
         //放行
         return true;
@@ -35,6 +33,6 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-
+        UserHolder.removeUser();
     }
 }
