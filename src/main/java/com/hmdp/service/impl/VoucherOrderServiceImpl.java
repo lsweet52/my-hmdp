@@ -11,20 +11,13 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisIdGenerator;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
-/**
- * <p>
- *  服务实现类
- * </p>
- *
- * @author 虎哥
- * @since 2021-12-22
- */
 @Service
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
 
@@ -37,8 +30,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
      * 秒杀卷下单
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result seckillVoucher(Long voucherId) {
+        Long userId = UserHolder.getUser().getId();
         //查询优惠卷
         SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
 
@@ -63,7 +56,26 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("库存不足");
         }
 
-        //充足，扣减库存，创建订单
+        synchronized (userId.toString().intern()) {
+            //获取代理对象，当前对象直接调用，会导致事务失效--事务基于AOP动态代理实现
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId, userId);
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Result createVoucherOrder(Long voucherId, Long userId) {
+        //根据优惠卷id用户id查询订单
+        Integer count = query().eq("voucher_id", voucherId)
+                .eq("user_id", userId)
+                .count();
+
+        //订单存在，返回错误
+        if(count > 0){
+            return Result.fail("不能重复下单");
+        }
+
+        //库存充足，扣减库存，创建订单
         boolean success = seckillVoucherService.update()
                 .setSql("stock = stock - 1")
                 .eq("voucher_id", voucherId)
@@ -77,7 +89,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         long orderId = redisIdGenerator.nextId("order");
         VoucherOrder voucherOrder = new VoucherOrder();
         voucherOrder.setId(orderId);
-        voucherOrder.setUserId(UserHolder.getUser().getId());
+        voucherOrder.setUserId(userId);
         voucherOrder.setVoucherId(voucherId);
         voucherOrder.setCreateTime(LocalDateTime.now());
         voucherOrder.setUpdateTime(LocalDateTime.now());
